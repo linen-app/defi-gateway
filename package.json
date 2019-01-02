@@ -7,10 +7,16 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "openzeppelin-solidity": "^2.0.0"
+    "openzeppelin-solidity": "^2.0.0",
+    "truffle-typings": "^1.0.5",
+    "ts-node": "^7.0.1",
+    "typechain": "^0.3.10",
+    "typescript": "^3.2.2"
   },
   "scripts": {
-    "test": "truffle test"
+    "test": "truffle test",
+    "build": "truffle compile",
+    "postinstall": "typechain --target=truffle './build/contracts/*.json'"
   },
   "author": "",
   "license": "ISC"
