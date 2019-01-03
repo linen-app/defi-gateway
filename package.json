@@ -14,9 +14,11 @@
     "typescript": "^3.2.2"
   },
   "scripts": {
-    "test": "truffle test",
+    "test": "testchain/scripts/launch --ci --snapshot default 'truffle test --network=testchain'",
     "build": "truffle compile",
-    "postinstall": "typechain --target=truffle './build/contracts/*.json'"
+    "generate-types": "typechain --target=truffle './build/contracts/*.json'",
+    "postinstall": "npm run generate-types",
+    "pretest": "npm run build && npm run generate-types"
   },
   "author": "",
   "license": "ISC"

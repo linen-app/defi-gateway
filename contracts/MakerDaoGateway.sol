@@ -6,12 +6,15 @@ import "./interfaces/ISaiTub.sol";
 
 
 contract MakerDaoGateway is Pausable {
-    constructor() public {
+    address public saiTube;
+
+    constructor(address _saiTube) public {
+        saiTube = _saiTube;
     }
 
-    function supplyAndBorrow(uint cdpId, uint daiAmount, address beneficiary) external payable {
+    function supplyAndBorrow(uint cdpId, uint daiAmount, uint ethAmount, address beneficiary) external payable {
         if (msg.value > 0) {
-            supplyEth(cdpId);
+            supplyEth(cdpId, ethAmount);
         }
         if (daiAmount > 0) {
             borrowDai(cdpId, daiAmount, beneficiary);
@@ -27,7 +30,7 @@ contract MakerDaoGateway is Pausable {
         }
     }
 
-    function supplyEth(uint cdpId) public payable {
+    function supplyEth(uint cdpId, uint ethAmount) public payable {
         
     }
 
