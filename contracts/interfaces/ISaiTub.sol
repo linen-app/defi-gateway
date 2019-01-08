@@ -1,6 +1,6 @@
 pragma solidity 0.4.24;
 
-interface SaiTub {
+interface ISaiTub {
     function open() public returns (bytes32 cup);
     function join(uint wad) public;
     function exit(uint wad) public;

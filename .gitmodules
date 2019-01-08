@@ -1,3 +1,4 @@
 [submodule "testchain"]
 	path = testchain
 	url = git@github.com:makerdao/testchain.git
+	ignore = dirty

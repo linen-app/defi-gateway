@@ -7,18 +7,21 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "bn-chai": "^1.0.1",
+    "chai": "3.5.0",
+    "chai-string": "^1.5.0",
+    "ethers": "^4.0.20",
     "openzeppelin-solidity": "^2.0.0",
-    "truffle-typings": "^1.0.5",
     "ts-node": "^7.0.1",
     "typechain": "^0.3.10",
     "typescript": "^3.2.2"
   },
   "scripts": {
-    "test": "testchain/scripts/launch --ci --snapshot default 'truffle test --network=testchain'",
-    "build": "truffle compile",
-    "generate-types": "typechain --target=truffle './build/contracts/*.json'",
-    "postinstall": "npm run generate-types",
-    "pretest": "npm run build && npm run generate-types"
+    "test": "truffle test --network=testchain",
+    "test:chain": "testchain/scripts/launch --snapshot default",
+    "build": "truffle compile && npm run generate-types",
+    "generate-types": "typechain --target=ethers './build/contracts/*.json' && typechain --target=truffle './build/contracts/*.json'",
+    "postinstall": "cd testchain && npm install"
   },
   "author": "",
   "license": "ISC"

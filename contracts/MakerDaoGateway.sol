@@ -3,21 +3,40 @@ pragma solidity 0.4.24;
 import "openzeppelin-solidity/contracts/lifecycle/Pausable.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "./interfaces/ISaiTub.sol";
+import "./interfaces/IWrappedEther.sol";
 
 
 contract MakerDaoGateway is Pausable {
-    address public saiTube;
+    ISaiTub public saiTube;
+    IWrappedEther public wrappedEther;
 
-    constructor(address _saiTube) public {
-        saiTube = _saiTube;
+    function approveERC20() public {
+        wrappedEther.approve(saiTube, 2**256 - 1);
+        // IERC20 pethTkn = IERC20(getAddress("peth"));
+        // pethTkn.approve(cdpAddr, 2**256 - 1);
+        // IERC20 mkrTkn = IERC20(getAddress("mkr"));
+        // mkrTkn.approve(cdpAddr, 2**256 - 1);
+        // IERC20 daiTkn = IERC20(getAddress("dai"));
+        // daiTkn.approve(cdpAddr, 2**256 - 1);
     }
 
-    function supplyAndBorrow(uint cdpId, uint daiAmount, uint ethAmount, address beneficiary) external payable {
+
+    constructor(ISaiTub _saiTube, IWrappedEther _wrappedEther) public {
+        require(address(_saiTube) != 0x0);
+        require(address(_wrappedEther) != 0x0);
+
+        saiTube = _saiTube;
+        wrappedEther = _wrappedEther;
+
+        approveERC20();
+    }
+
+    function supplyAndBorrow(uint cdpId, uint daiAmount, address beneficiary) external payable {
         if (msg.value > 0) {
-            supplyEth(cdpId, ethAmount);
+            supplyEth(cdpId);
         }
         if (daiAmount > 0) {
-            borrowDai(cdpId, daiAmount, beneficiary);
+            //borrowDai(cdpId, daiAmount, beneficiary);
         }
     }
 
@@ -29,13 +48,15 @@ contract MakerDaoGateway is Pausable {
             returnEth(cdpId, ethAmount);
         }
     }
-
-    function supplyEth(uint cdpId, uint ethAmount) public payable {
-        
+    
+    function supplyEth(uint cdpId) public payable {
+        wrappedEther.deposit.value(msg.value)();
+        //supplyWeth(cdpId, msg.value);
     }
 
     function supplyWeth(uint cdpId, uint wethAmount) public payable {
-        
+        wrappedEther.transferFrom(msg.sender, this, wethAmount);
+        //saiTube.join(wethAmount);
     }
 
     function borrowDai(uint cdpId, uint daiAmount, address beneficiary) public {
