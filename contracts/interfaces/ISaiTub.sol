@@ -8,6 +8,7 @@ interface ISaiTub {
     function sin() external view returns (IERC20);  // Debt (negative sai)
     function skr() external view returns (IERC20);  // Abstracted collateral
     function gem() external view returns (IWrappedEther);  // Underlying collateral
+    function gov() external view returns (IERC20);  // Governance token
 
     function open() external returns (bytes32 cup);
     function join(uint wad) external;

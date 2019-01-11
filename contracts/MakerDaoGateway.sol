@@ -10,108 +10,165 @@ import "./interfaces/IWrappedEther.sol";
 contract MakerDaoGateway is Pausable {
     using SafeMath for uint;
 
-    ISaiTub public saiTube;
-    IWrappedEther public wrappedEther;
-    IERC20 public pooledEther;
-    IERC20 public dai;
+    ISaiTub public saiTub;
 
-    mapping (bytes32 => address) public cdpOwner;
+    mapping(bytes32 => address) public cdpOwner;
+    mapping(address => bytes32[]) public cdpsByOwner;
 
     // TODO: check indexed fields
     event CdpOpened(address indexed owner, bytes32 cdpId);
     event CollateralSupplied(address indexed owner, bytes32 cdpId, uint wethAmount, uint pethAmount);
     event DaiBorrowed(address indexed owner, bytes32 cdpId, uint amount);
+    event DaiRepaid(address indexed owner, bytes32 cdpId, uint amount);
+    event CollateralReturned(address indexed owner, bytes32 cdpId, uint wethAmount, uint pethAmount);
 
 
-    constructor(ISaiTub _saiTube) public {
-        saiTube = _saiTube;
-        wrappedEther = saiTube.gem();
-        pooledEther = saiTube.skr();
-        dai = saiTube.sai();
+    constructor(ISaiTub _saiTub) public {
+        saiTub = _saiTub;
+    }
 
-        approveERC20();
+    function cdpsByOwnerLength(address owner) public view returns (uint) {
+        return cdpsByOwner[owner].length;
+    }
+
+    function () public payable {
+        // For unwrapping WETH only
     }
     
     // SUPPLY AND BORROW
-
-    function supplyAndBorrow(bytes32 cdpId, uint daiAmount, address beneficiary) external payable {
-        bytes32 id = cdpId; //TO FIX
-        if (msg.value > 0) {
-            id = supplyEth(cdpId);
-        }
-        if (daiAmount > 0) {
-            borrowDai(id, daiAmount, beneficiary);
-        }
-    }
     
-    // ETH amount should be > 0.005
+    // specify cdpId if you want to use existing CDP, or pass 0 if you need to create a new one 
+    function supplyAndBorrow(bytes32 cdpId, uint daiAmount) external payable {
+        bytes32 id = supplyEth(cdpId);
+        borrowDai(id, daiAmount);
+    }
+
+    // ETH amount should be > 0.005 for new CDPs
+    // returns id of actual cdp (existing or a new one)
     function supplyEth(bytes32 cdpId) public payable returns (bytes32) {
-        wrappedEther.deposit.value(msg.value)();
-        return supply(cdpId, msg.value);
+        if (msg.value > 0) {
+            saiTub.gem().deposit.value(msg.value)();
+            return _supply(cdpId, msg.value);
+        }
+
+        return cdpId;
     }
 
-    // WETH amount should be > 0.005
-    // don't forget to approve before supplying
+    // WETH amount should be > 0.005 for new CDPs
+    // don't forget to approve WETH before supplying
+    // returns id of actual cdp (existing or a new one)
     function supplyWeth(bytes32 cdpId, uint wethAmount) public returns (bytes32) {
-        wrappedEther.transferFrom(msg.sender, this, wethAmount);
-        return supply(cdpId, wethAmount);
+        if (wethAmount > 0) {
+            saiTub.gem().transferFrom(msg.sender, this, wethAmount);
+            return _supply(cdpId, wethAmount);
+        }
+
+        return cdpId;
     }
 
-    function pethPEReth(uint ethNum) public view returns (uint rPETH) {
-        rPETH = (ethNum.mul(10 ** 27)).div(saiTube.per());
-    }
 
-    function supply(bytes32 cdpId, uint wethAmount) internal returns (bytes32) {
-        uint pethAmount = pethPEReth(wethAmount); //TODO adjust acording to the rate;
-        saiTube.join(pethAmount);
-
-        assert(pooledEther.balanceOf(this) >= pethAmount);
-
-        bytes32 id = cdpId;
-        if(id == 0) {
-            id = saiTube.open();
-            cdpOwner[id] = msg.sender;
-            emit CdpOpened(msg.sender, id);
+    function _supply(bytes32 cdpId, uint wethAmount) internal returns (bytes32 id) {
+        id = cdpId;
+        if (id == 0) {
+            id = createCdp();
         } else {
             require(cdpOwner[id] == msg.sender, "CDP belongs to a different address");
         }
 
-        saiTube.lock(id, pethAmount);
-        emit CollateralSupplied(msg.sender, id, wethAmount, pethAmount);
+        if (saiTub.gem().allowance(this, saiTub) != uint(-1)) {
+            saiTub.gem().approve(saiTub, uint(-1));
+        }
 
-        return id;
+        uint pethAmount = pethForWeth(wethAmount);
+        
+        saiTub.join(pethAmount);
+
+        if (saiTub.skr().allowance(this, saiTub) != uint(-1)) {
+            saiTub.skr().approve(saiTub, uint(-1));
+        }
+
+        saiTub.lock(id, pethAmount);
+        emit CollateralSupplied(msg.sender, id, wethAmount, pethAmount);
+    }
+    
+    function createCdp() internal returns (bytes32 cdpId) {
+        cdpId = saiTub.open();
+        
+        cdpOwner[cdpId] = msg.sender;
+        cdpsByOwner[msg.sender].push(cdpId);
+        
+        emit CdpOpened(msg.sender, cdpId);
     }
 
-    // TODO: handle beneficiary address
-    function borrowDai(bytes32 cdpId, uint daiAmount, address beneficiary) public {
+    function borrowDai(bytes32 cdpId, uint daiAmount) public {
         require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
-        
-        saiTube.draw(cdpId, daiAmount);
-        dai.transfer(msg.sender, daiAmount);
-        emit DaiBorrowed(msg.sender, cdpId, daiAmount);
+        if (daiAmount > 0) {
+            saiTub.draw(cdpId, daiAmount);
+            
+            saiTub.sai().transfer(msg.sender, daiAmount);
+            
+            emit DaiBorrowed(msg.sender, cdpId, daiAmount);
+        }
     }
 
     // REPAY AND RETURN
-    
+
+    // don't forget to approve DAI before repaying
     function repayAndReturn(bytes32 cdpId, uint daiAmount, uint ethAmount) external {
-        if (daiAmount > 0) {
-            repayDai(cdpId, daiAmount);
-        }
-        if (ethAmount > 0) {
-            returnEth(cdpId, ethAmount);
-        }
+        repayDai(cdpId, daiAmount);
+        returnEth(cdpId, ethAmount);
     }
 
+    // don't forget to approve DAI before repaying
     function repayDai(bytes32 cdpId, uint daiAmount) public {
-        
+        require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
+        if (daiAmount > 0) {
+            //TODO: handle gov fee
+            saiTub.sai().transferFrom(msg.sender, this, daiAmount);
+
+            if (saiTub.sai().allowance(this, saiTub) != uint(-1)) {
+                saiTub.sai().approve(saiTub, uint(-1));
+            }
+            if (saiTub.gov().allowance(this, saiTub) != uint(-1)) {
+                saiTub.gov().approve(saiTub, uint(-1));
+            }
+            
+            saiTub.wipe(cdpId, daiAmount);
+
+            emit DaiRepaid(msg.sender, cdpId, daiAmount);
+        }
     }
 
     function returnEth(bytes32 cdpId, uint ethAmount) public {
-        
+        require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
+        if (ethAmount > 0) {
+            _return(cdpId, ethAmount);
+            saiTub.gem().withdraw(ethAmount);
+            msg.sender.transfer(ethAmount);
+        }
     }
 
     function returnWeth(bytes32 cdpId, uint wethAmount) public {
+        require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
+        if (wethAmount > 0){
+            _return(cdpId, wethAmount);
+            saiTub.gem().transfer(msg.sender, wethAmount);
+        }
+    }
+    
+    function _return(bytes32 cdpId, uint wethAmount) internal {
+        require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
+
+        uint pethAmount = pethForWeth(wethAmount);
+        saiTub.free(cdpId, pethAmount);
+
+        if (saiTub.skr().allowance(this, saiTub) != uint(-1)) {
+            saiTub.skr().approve(saiTub, uint(-1));
+        }
         
+        saiTub.exit(pethAmount);
+
+        emit CollateralReturned(msg.sender, cdpId, wethAmount, pethAmount);
     }
 
     function transferCdp(bytes32 cdpId, address nextOwner) external {
@@ -119,16 +176,23 @@ contract MakerDaoGateway is Pausable {
     }
 
     function migrateCdp(bytes32 cdpId) external {
-        
+
+    }
+    
+    // Just for testing purpuses
+    function withdrawMkr(uint mkrAmount) external onlyPauser {
+        saiTub.gov().transfer(msg.sender, mkrAmount);
     }
 
-    function approveERC20() public {
-        wrappedEther.approve(saiTube, 2**256 - 1);
-        pooledEther.approve(saiTube, 2**256 - 1);
-        // IERC20 mkrTkn = IERC20(getAddress("mkr"));
-        // mkrTkn.approve(cdpAddr, 2**256 - 1);
-        // IERC20 daiTkn = IERC20(getAddress("dai"));
-        // daiTkn.approve(cdpAddr, 2**256 - 1);
+    function pethForWeth(uint wethAmount) public view returns (uint) {
+        return rdiv(wethAmount, saiTub.per());
+
     }
 
+    uint constant internal RAY = 10 ** 27;
+    
+    // more info: https://github.com/dapphub/ds-math#rdiv
+    function rdiv(uint x, uint y) internal pure returns (uint z) {
+        z = x.mul(RAY).add(y / 2) / y;
+    }
 }
