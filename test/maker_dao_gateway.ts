@@ -11,13 +11,15 @@ import {ContractReceipt} from 'ethers/contract';
 chai.use(require('bn-chai')(BigNumber));
 chai.use(require('chai-string'));
 
-const MakerDaoGatewayArtifacts = artifacts.require('MakerDaoGateway');
-const DummyTokenArtifacts = artifacts.require('DummyToken');
-const IWrappedEtherArtifacts = artifacts.require('IWrappedEther');
+type Artifacts = { address: string; abi: string[] };
+const MakerDaoGatewayArtifacts: Artifacts  = artifacts.require('MakerDaoGateway') as any;
+const DummyTokenArtifacts: Artifacts = artifacts.require('DummyToken') as any;
+const IWrappedEtherArtifacts: Artifacts = artifacts.require('IWrappedEther') as any;
 
 const saiTubeAddress = '0xe82ce3d6bf40f2f9414c8d01a35e3d9eb16a1761';
 const daiAddress = '0xc226f3cd13d508bc319f4f4290172748199d6612';
 const wethAddress = '0x7ba25f791fa76c3ef40ac98ed42634a8bc24c238';
+const mkrAddress = '0x1c3ac7216250edc5b9daa5598da0579688b9dbd5';
 
 async function transaction(transaction: Promise<ContractTransaction>): Promise<{ tx: ContractTransaction, receipt: ContractReceipt }> {
     const tx = await transaction;
@@ -43,6 +45,9 @@ contract('MakerDaoGateway', ([deployer, user]) => {
 
         dai = new Contract(daiAddress, DummyTokenArtifacts.abi, signer) as DummyToken;
         weth = new Contract(wethAddress, IWrappedEtherArtifacts.abi, signer) as IWrappedEther;
+
+        const mkr = new Contract(mkrAddress, DummyTokenArtifacts.abi, provider.getSigner(deployer)) as DummyToken;
+        await transaction(mkr.functions.transfer(makerDaoGateway.address, await mkr.functions.balanceOf(deployer)));
     });
 
     it('should have correct WETH contract', async () => {
@@ -77,12 +82,12 @@ contract('MakerDaoGateway', ([deployer, user]) => {
     });
 
     it('should supplyAndBorrow sucessfuly', async () => {
-        const daiAmount = new BigNumber(1);//utils.parseEther('5');
+        const daiAmount = new BigNumber(10);
         const ethAmount = utils.parseEther('0.006');
         const preEthBalance = await provider.getBalance(user);
         const preDaiBalance = await dai.functions.balanceOf(user);
 
-        const {tx, receipt} = await transaction(makerDaoGateway.functions.supplyAndBorrow(
+        const {tx, receipt} = await transaction(makerDaoGateway.functions.supplyEthAndBorrowDai(
             cdpId,
             daiAmount,
             {value: ethAmount, gasLimit: 6000000}
@@ -129,14 +134,29 @@ contract('MakerDaoGateway', ([deployer, user]) => {
 
     it('should repayAndReturn sucessfuly', async () => {
         const daiAmount = new BigNumber(1);
-        const ethAmount = utils.parseEther('0.006');
+        const ethAmount = utils.parseEther('0.001');
         const preDaiBalance = await dai.functions.balanceOf(user);
 
         await transaction(dai.functions.approve(makerDaoGateway.address, constants.MaxUint256));
-        await transaction(makerDaoGateway.functions.repayAndReturn(cdpId, daiAmount, ethAmount, {gasLimit: 6000000}));
+        await transaction(makerDaoGateway.functions.repayDaiAndReturnEth(cdpId, daiAmount, ethAmount, {gasLimit: 6000000}));
 
         const postDaiBalance = await dai.functions.balanceOf(user);
         expect(preDaiBalance.sub(postDaiBalance), 'DAI balance check').to.eq.BN(daiAmount);
+    });
+
+    it('should allow to repayAndReturn all', async () => {
+        const daiAmount = new BigNumber(9);
+        const ethAmount = utils.parseEther('0.004');
+        const preDaiBalance = await dai.functions.balanceOf(user);
+        const preEthBalance = await provider.getBalance(user);  
+
+        const {tx, receipt} = await transaction(makerDaoGateway.functions.repayDaiAndReturnEth(cdpId, constants.MaxUint256, constants.MaxUint256, {gasLimit: 6000000}));
+
+        const postDaiBalance = await dai.functions.balanceOf(user);
+        const postEthBalance = await provider.getBalance(user);
+        const ethUsedForGas = (receipt.gasUsed || new BigNumber(0)).mul(tx.gasPrice);
+        expect(preDaiBalance.sub(postDaiBalance), 'DAI balance check').to.eq.BN(daiAmount);
+        expect(postEthBalance.sub(preEthBalance), 'ETH balance check').to.eq.BN(ethAmount.sub(ethUsedForGas));
     });
 
     xit('should not allow token leaks', async () => {

@@ -1,5 +1,4 @@
 var MakerDaoGateway = artifacts.require('MakerDaoGateway');
-var KyberGateway = artifacts.require('KyberGateway');
 
 var saiTubeAddress = null;
 
@@ -14,6 +13,5 @@ module.exports = (deployer, network) => {
     throw new Error('Unknown network: ' + network);
   }
 
-  deployer.deploy(KyberGateway);
   deployer.deploy(MakerDaoGateway, saiTubeAddress);
 };

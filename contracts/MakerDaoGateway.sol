@@ -38,8 +38,14 @@ contract MakerDaoGateway is Pausable {
     // SUPPLY AND BORROW
     
     // specify cdpId if you want to use existing CDP, or pass 0 if you need to create a new one 
-    function supplyAndBorrow(bytes32 cdpId, uint daiAmount) external payable {
+    function supplyEthAndBorrowDai(bytes32 cdpId, uint daiAmount) external payable {
         bytes32 id = supplyEth(cdpId);
+        borrowDai(id, daiAmount);
+    }
+
+    // specify cdpId if you want to use existing CDP, or pass 0 if you need to create a new one 
+    function supplyWethAndBorrowDai(bytes32 cdpId, uint wethAmount, uint daiAmount) external payable {
+        bytes32 id = supplyWeth(cdpId, wethAmount);
         borrowDai(id, daiAmount);
     }
 
@@ -114,17 +120,28 @@ contract MakerDaoGateway is Pausable {
     // REPAY AND RETURN
 
     // don't forget to approve DAI before repaying
-    function repayAndReturn(bytes32 cdpId, uint daiAmount, uint ethAmount) external {
+    function repayDaiAndReturnEth(bytes32 cdpId, uint daiAmount, uint ethAmount) external {
         repayDai(cdpId, daiAmount);
         returnEth(cdpId, ethAmount);
+    }
+
+    // don't forget to approve DAI before repaying
+    // pass -1 to daiAmount to repay all outstanding debt
+    // pass -1 to wethAmount to return all collateral
+    function repayDaiAndReturnWeth(bytes32 cdpId, uint daiAmount, uint wethAmount) external {
+        repayDai(cdpId, daiAmount);
+        returnWeth(cdpId, wethAmount);
     }
 
     // don't forget to approve DAI before repaying
     function repayDai(bytes32 cdpId, uint daiAmount) public {
         require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
         if (daiAmount > 0) {
-            //TODO: handle gov fee
-            saiTub.sai().transferFrom(msg.sender, this, daiAmount);
+            
+            uint amount = daiAmount;
+            if (daiAmount == uint(-1)) {
+                amount = saiTub.tab(cdpId);
+            }
 
             if (saiTub.sai().allowance(this, saiTub) != uint(-1)) {
                 saiTub.sai().approve(saiTub, uint(-1));
@@ -132,34 +149,44 @@ contract MakerDaoGateway is Pausable {
             if (saiTub.gov().allowance(this, saiTub) != uint(-1)) {
                 saiTub.gov().approve(saiTub, uint(-1));
             }
-            
-            saiTub.wipe(cdpId, daiAmount);
 
-            emit DaiRepaid(msg.sender, cdpId, daiAmount);
+            //TODO: handle gov fee
+            saiTub.sai().transferFrom(msg.sender, this, amount);
+            
+            saiTub.wipe(cdpId, amount);
+
+            emit DaiRepaid(msg.sender, cdpId, amount);
         }
     }
 
     function returnEth(bytes32 cdpId, uint ethAmount) public {
         require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
         if (ethAmount > 0) {
-            _return(cdpId, ethAmount);
-            saiTub.gem().withdraw(ethAmount);
-            msg.sender.transfer(ethAmount);
+            uint effectiveWethAmount = _return(cdpId, ethAmount);
+            saiTub.gem().withdraw(effectiveWethAmount);
+            msg.sender.transfer(effectiveWethAmount);
         }
     }
 
     function returnWeth(bytes32 cdpId, uint wethAmount) public {
         require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
         if (wethAmount > 0){
-            _return(cdpId, wethAmount);
-            saiTub.gem().transfer(msg.sender, wethAmount);
+            uint effectiveWethAmount = _return(cdpId, wethAmount);
+            saiTub.gem().transfer(msg.sender, effectiveWethAmount);
         }
     }
     
-    function _return(bytes32 cdpId, uint wethAmount) internal {
+    function _return(bytes32 cdpId, uint wethAmount) internal returns (uint effectiveWethAmount) {
         require(cdpOwner[cdpId] == msg.sender, "CDP belongs to a different address");
 
-        uint pethAmount = pethForWeth(wethAmount);
+        uint pethAmount;
+        
+        if (wethAmount == uint(-1)){
+            pethAmount = saiTub.ink(cdpId);
+        } else {
+            pethAmount = pethForWeth(wethAmount);
+        }
+
         saiTub.free(cdpId, pethAmount);
 
         if (saiTub.skr().allowance(this, saiTub) != uint(-1)) {
@@ -167,16 +194,18 @@ contract MakerDaoGateway is Pausable {
         }
         
         saiTub.exit(pethAmount);
+        
+        effectiveWethAmount = wethForPeth(pethAmount);
 
-        emit CollateralReturned(msg.sender, cdpId, wethAmount, pethAmount);
+        emit CollateralReturned(msg.sender, cdpId, effectiveWethAmount, pethAmount);
     }
 
     function transferCdp(bytes32 cdpId, address nextOwner) external {
-
+        //TODO
     }
 
     function migrateCdp(bytes32 cdpId) external {
-
+        //TODO
     }
     
     // Just for testing purpuses
@@ -186,13 +215,20 @@ contract MakerDaoGateway is Pausable {
 
     function pethForWeth(uint wethAmount) public view returns (uint) {
         return rdiv(wethAmount, saiTub.per());
+    }
 
+    function wethForPeth(uint pethAmount) public view returns (uint) {
+        return rmul(pethAmount, saiTub.per());
     }
 
     uint constant internal RAY = 10 ** 27;
     
-    // more info: https://github.com/dapphub/ds-math#rdiv
+    // more info about ray math: https://github.com/dapphub/ds-math
     function rdiv(uint x, uint y) internal pure returns (uint z) {
         z = x.mul(RAY).add(y / 2) / y;
+    }
+
+    function rmul(uint x, uint y) internal pure returns (uint z) {
+        z = x.mul(y).add(RAY / 2) / RAY;
     }
 }
