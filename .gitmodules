@@ -1,4 +1,3 @@
-[submodule "testchain"]
-	path = testchain
-	url = git@github.com:makerdao/testchain.git
-	ignore = dirty
+[submodule "lib/ds-math"]
+	path = lib/ds-math
+	url = https://github.com/dapphub/ds-math.git
