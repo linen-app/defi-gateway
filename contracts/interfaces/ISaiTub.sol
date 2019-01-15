@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.0;
 
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "./IWrappedEther.sol";
@@ -20,6 +20,9 @@ interface ISaiTub {
     function wipe(bytes32 cup, uint wad) external;
     function per() external view returns (uint ray);
     function lad(bytes32 cup) external view returns (address);
+    
     function tab(bytes32 cup) external returns (uint);
     function ink(bytes32 cup) external view returns (uint);
+    function mat() external view returns (uint);    // Liquidation ratio
+    function fee() external view returns (uint);    // Governance fee
 }

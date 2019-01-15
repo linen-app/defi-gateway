@@ -11,17 +11,18 @@
     "chai": "3.5.0",
     "chai-string": "^1.5.0",
     "ethers": "^4.0.20",
-    "openzeppelin-solidity": "^2.0.0",
+    "openzeppelin-solidity": "^2.1.1",
+    "truffle-typings": "^1.0.6",
     "ts-node": "^7.0.1",
-    "typechain": "^0.3.10",
+    "typechain": "^0.3.11",
     "typescript": "^3.2.2"
   },
   "scripts": {
     "test": "truffle test --network=testchain",
-    "test:chain": "testchain/scripts/launch --snapshot default",
+    "test:chain": "lib/testchain/scripts/launch --snapshot default",
     "build": "truffle compile && npm run generate-types",
     "generate-types": "typechain --target=ethers './build/contracts/*.json' && typechain --target=truffle './build/contracts/*.json'",
-    "postinstall": "cd testchain && npm install"
+    "postinstall": "cd lib/testchain && npm install"
   },
   "author": "",
   "license": "ISC"

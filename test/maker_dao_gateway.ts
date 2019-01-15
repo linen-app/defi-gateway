@@ -50,6 +50,13 @@ contract('MakerDaoGateway', ([deployer, user]) => {
         await transaction(mkr.functions.transfer(makerDaoGateway.address, await mkr.functions.balanceOf(deployer)));
     });
 
+    it('should have correct system parameters', async () => {
+        const {annualStabilityFee, liquidationRatio} = await makerDaoGateway.functions.systemParameters();
+        
+        expect(annualStabilityFee, 'annualStabilityFee check').to.eq.BN(new BigNumber(10).pow(23).mul(25));
+        expect(liquidationRatio, 'liquidationRatio check').to.eq.BN(new BigNumber(10).pow(26).mul(15));
+    });
+
     it('should have correct WETH contract', async () => {
         const wethAmount = utils.parseEther('0.006');
         const preWethBalance = await weth.functions.balanceOf(user);

@@ -1,14 +1,14 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.0;
 
 import "openzeppelin-solidity/contracts/lifecycle/Pausable.sol";
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import "../lib/ds-math/src/math.sol";
 import "./interfaces/ISaiTub.sol";
 import "./interfaces/IWrappedEther.sol";
 
 
-contract MakerDaoGateway is Pausable {
-    using SafeMath for uint;
+
+contract MakerDaoGateway is Pausable, DSMath {
 
     ISaiTub public saiTub;
 
@@ -30,9 +30,14 @@ contract MakerDaoGateway is Pausable {
     function cdpsByOwnerLength(address owner) public view returns (uint) {
         return cdpsByOwner[owner].length;
     }
+    
+    function systemParameters() public view returns (uint liquidationRatio, uint annualStabilityFee) {
+        liquidationRatio = saiTub.mat();
+        annualStabilityFee = rpow(saiTub.fee(), 365 days);
+    }
 
-    function () public payable {
-        // For unwrapping WETH only
+    function () external payable {
+        // For unwrapping WETH
     }
     
     // SUPPLY AND BORROW
@@ -65,7 +70,7 @@ contract MakerDaoGateway is Pausable {
     // returns id of actual cdp (existing or a new one)
     function supplyWeth(bytes32 cdpId, uint wethAmount) public returns (bytes32) {
         if (wethAmount > 0) {
-            saiTub.gem().transferFrom(msg.sender, this, wethAmount);
+            saiTub.gem().transferFrom(msg.sender, address(this), wethAmount);
             return _supply(cdpId, wethAmount);
         }
 
@@ -81,16 +86,16 @@ contract MakerDaoGateway is Pausable {
             require(cdpOwner[id] == msg.sender, "CDP belongs to a different address");
         }
 
-        if (saiTub.gem().allowance(this, saiTub) != uint(-1)) {
-            saiTub.gem().approve(saiTub, uint(-1));
+        if (saiTub.gem().allowance(address(this), address(saiTub)) != uint(-1)) {
+            saiTub.gem().approve(address(saiTub), uint(-1));
         }
 
         uint pethAmount = pethForWeth(wethAmount);
         
         saiTub.join(pethAmount);
 
-        if (saiTub.skr().allowance(this, saiTub) != uint(-1)) {
-            saiTub.skr().approve(saiTub, uint(-1));
+        if (saiTub.skr().allowance(address(this), address(saiTub)) != uint(-1)) {
+            saiTub.skr().approve(address(saiTub), uint(-1));
         }
 
         saiTub.lock(id, pethAmount);
@@ -143,15 +148,15 @@ contract MakerDaoGateway is Pausable {
                 amount = saiTub.tab(cdpId);
             }
 
-            if (saiTub.sai().allowance(this, saiTub) != uint(-1)) {
-                saiTub.sai().approve(saiTub, uint(-1));
+            if (saiTub.sai().allowance(address(this), address(saiTub)) != uint(-1)) {
+                saiTub.sai().approve(address(saiTub), uint(-1));
             }
-            if (saiTub.gov().allowance(this, saiTub) != uint(-1)) {
-                saiTub.gov().approve(saiTub, uint(-1));
+            if (saiTub.gov().allowance(address(this), address(saiTub)) != uint(-1)) {
+                saiTub.gov().approve(address(saiTub), uint(-1));
             }
 
             //TODO: handle gov fee
-            saiTub.sai().transferFrom(msg.sender, this, amount);
+            saiTub.sai().transferFrom(msg.sender, address(this), amount);
             
             saiTub.wipe(cdpId, amount);
 
@@ -189,8 +194,8 @@ contract MakerDaoGateway is Pausable {
 
         saiTub.free(cdpId, pethAmount);
 
-        if (saiTub.skr().allowance(this, saiTub) != uint(-1)) {
-            saiTub.skr().approve(saiTub, uint(-1));
+        if (saiTub.skr().allowance(address(this), address(saiTub)) != uint(-1)) {
+            saiTub.skr().approve(address(saiTub), uint(-1));
         }
         
         saiTub.exit(pethAmount);
@@ -219,16 +224,5 @@ contract MakerDaoGateway is Pausable {
 
     function wethForPeth(uint pethAmount) public view returns (uint) {
         return rmul(pethAmount, saiTub.per());
-    }
-
-    uint constant internal RAY = 10 ** 27;
-    
-    // more info about ray math: https://github.com/dapphub/ds-math
-    function rdiv(uint x, uint y) internal pure returns (uint z) {
-        z = x.mul(RAY).add(y / 2) / y;
-    }
-
-    function rmul(uint x, uint y) internal pure returns (uint z) {
-        z = x.mul(y).add(RAY / 2) / RAY;
     }
 }
