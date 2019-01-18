@@ -22,6 +22,7 @@ interface ISaiTub {
     function free(bytes32 cup, uint wad) external;
     function draw(bytes32 cup, uint wad) external;
     function wipe(bytes32 cup, uint wad) external;
+    function shut(bytes32 cup) external;
     function per() external view returns (uint ray);
     function lad(bytes32 cup) external view returns (address);
     
