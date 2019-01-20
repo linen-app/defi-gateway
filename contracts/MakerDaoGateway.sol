@@ -15,6 +15,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     ISaiTub public saiTub;
     IDex public dex;
     IWrappedEther public weth;
+    IERC20 public peth;
     IERC20 public dai;
     IERC20 public mkr;
 
@@ -40,6 +41,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         saiTub = _saiTub;
         dex = _dex;
         weth = saiTub.gem();
+        peth = saiTub.skr();
         dai = saiTub.sai();
         mkr = saiTub.gov();
     }
@@ -95,7 +97,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     // returns id of actual cdp (existing or a new one)
     function supplyWeth(bytes32 cdpId, uint wethAmount) whenNotPaused isCdpOwner(cdpId) public returns (bytes32 _cdpId) {
         if (wethAmount > 0) {
-            weth.transferFrom(msg.sender, address(this), wethAmount);
+            require(weth.transferFrom(msg.sender, address(this), wethAmount));
             return _supply(cdpId, wethAmount);
         }
 
@@ -106,7 +108,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         if (daiAmount > 0) {
             saiTub.draw(cdpId, daiAmount);
 
-            dai.transfer(msg.sender, daiAmount);
+            require(dai.transfer(msg.sender, daiAmount));
 
             emit DaiBorrowed(msg.sender, cdpId, daiAmount);
         }
@@ -144,7 +146,7 @@ contract MakerDaoGateway is Pausable, DSMath {
             uint govFeeAmount = _calcGovernanceFee(cdpId, _daiAmount);
             _handleGovFee(govFeeAmount, payFeeInDai);
 
-            dai.transferFrom(msg.sender, address(this), _daiAmount);
+            require(dai.transferFrom(msg.sender, address(this), _daiAmount));
 
             saiTub.wipe(cdpId, _daiAmount);
 
@@ -163,7 +165,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     function returnWeth(bytes32 cdpId, uint wethAmount) whenNotPaused isCdpOwner(cdpId) public {
         if (wethAmount > 0) {
             uint effectiveWethAmount = _return(cdpId, wethAmount);
-            weth.transfer(msg.sender, effectiveWethAmount);
+            require(weth.transfer(msg.sender, effectiveWethAmount));
         }
     }
 
@@ -214,7 +216,7 @@ contract MakerDaoGateway is Pausable, DSMath {
 
         saiTub.join(pethAmount);
 
-        _ensureApproval(saiTub.skr(), address(saiTub));
+        _ensureApproval(peth, address(saiTub));
 
         saiTub.lock(_cdpId, pethAmount);
         emit CollateralSupplied(msg.sender, _cdpId, wethAmount, pethAmount);
@@ -232,7 +234,7 @@ contract MakerDaoGateway is Pausable, DSMath {
 
         saiTub.free(cdpId, pethAmount);
 
-        _ensureApproval(saiTub.skr(), address(saiTub));
+        _ensureApproval(peth, address(saiTub));
 
         saiTub.exit(pethAmount);
 
@@ -256,10 +258,10 @@ contract MakerDaoGateway is Pausable, DSMath {
 
                 _ensureApproval(dai, address(dex));
 
-                dai.transferFrom(msg.sender, address(this), saiGovAmt);
+                require(dai.transferFrom(msg.sender, address(this), saiGovAmt));
                 dex.buyAllAmount(mkr, govFeeAmount, dai, saiGovAmt);
             } else {
-                mkr.transferFrom(msg.sender, address(this), govFeeAmount);
+                require(mkr.transferFrom(msg.sender, address(this), govFeeAmount));
             }
         }
     }
