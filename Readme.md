@@ -2,7 +2,7 @@
 
 ## MakerDAO gateway
 
-More info about MakerDAO: https://makerdao.com/documentation/
+More info about MakerDAO: https://makerdao.com/en/whitepaper
 
 ### Functionality
 - Supply ETH or WETH as collateral
