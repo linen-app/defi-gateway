@@ -22,7 +22,6 @@ contract MakerDaoGateway is Pausable, DSMath {
     mapping(bytes32 => address) public cdpOwner;
     mapping(address => bytes32[]) public cdpsByOwner;
 
-    // TODO: check indexed fields
     event CdpOpened(address indexed owner, bytes32 cdpId);
     event CdpClosed(address indexed owner, bytes32 cdpId);
     event CollateralSupplied(address indexed owner, bytes32 cdpId, uint wethAmount, uint pethAmount);
@@ -63,7 +62,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         return rmul(pethAmount, saiTub.per());
     }
 
-    function() whenNotPaused external payable {
+    function() external payable {
         // For unwrapping WETH
     }
 
