@@ -8,7 +8,7 @@
       "resolveJsonModule": true,
       "lib": ["es2015", "esnext.asynciterable"],
       "typeRoots": ["./node_modules/@types", "./types" ],
-      "types": ["node", "ethers", "truffle-contracts" ],
+      "types": ["node", "ethers", "truffle-contracts" ]
     },
     "exclude": ["node_modules", "example", "build"]
 }
