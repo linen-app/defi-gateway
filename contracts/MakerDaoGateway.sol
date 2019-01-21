@@ -29,6 +29,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     event DaiRepaid(address indexed owner, bytes32 cdpId, uint amount);
     event CollateralReturned(address indexed owner, bytes32 cdpId, uint wethAmount, uint pethAmount);
     event CdpTransferred(address oldOwner, address newOwner, bytes32 cdpId);
+    event CdpEjected(address newOwner, bytes32 cdpId);
     event CdpAdopted(address newOwner, bytes32 cdpId);
 
     modifier isCdpOwner(bytes32 cdpId) {
@@ -45,13 +46,19 @@ contract MakerDaoGateway is Pausable, DSMath {
         mkr = saiTub.gov();
     }
 
-    function cdpsByOwnerLength(address _owner) public view returns (uint) {
+    function cdpsByOwnerLength(address _owner) external view returns (uint) {
         return cdpsByOwner[_owner].length;
     }
 
-    function systemParameters() public view returns (uint liquidationRatio, uint annualStabilityFee) {
+    function systemParameters() external view returns (uint liquidationRatio, uint annualStabilityFee) {
         liquidationRatio = saiTub.mat();
         annualStabilityFee = rpow(saiTub.fee(), 365 days);
+    }
+    
+    function cdpInfo(bytes32 cdpId) external view returns (uint borrowedDAI, uint suppliedPeth) {
+        (, uint ink, uint art, ) = saiTub.cups(cdpId);
+        borrowedDAI = art;
+        suppliedPeth = ink;
     }
 
     function pethForWeth(uint wethAmount) public view returns (uint) {
@@ -179,11 +186,20 @@ contract MakerDaoGateway is Pausable, DSMath {
     // TRANSFER AND ADOPT
 
     function transferCdp(bytes32 cdpId, address nextOwner) isCdpOwner(cdpId) external {
-        _removeCdp(cdpId);
-
         saiTub.give(cdpId, nextOwner);
 
+        _removeCdp(cdpId);
+
         emit CdpTransferred(msg.sender, nextOwner, cdpId);
+    }
+    
+    function ejectCdp(bytes32 cdpId) onlyPauser external {
+        address owner = cdpOwner[cdpId];
+        saiTub.give(cdpId, owner);
+
+        _removeCdp(cdpId);
+
+        emit CdpEjected(owner, cdpId);
     }
 
     function adoptCdp(bytes32 cdpId, address owner) whenNotPaused external {

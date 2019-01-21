@@ -32,5 +32,6 @@ interface ISaiTub {
     function mat() external view returns (uint);    // Liquidation ratio
     function fee() external view returns (uint);    // Governance fee
     function pep() external view returns (DSValue); // Governance price feed
-    
+
+    function cups(bytes32) external view returns (address, uint, uint, uint);
 }
