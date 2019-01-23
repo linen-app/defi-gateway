@@ -1,17 +1,17 @@
 import * as chai from 'chai';
-import {expect} from 'chai';
+import {BigNumber} from 'ethers/utils';
+chai.use(require('bn-chai')(BigNumber));
+chai.use(require('chai-string'));
+chai.use(require('chai-as-promised'));
+import {expect, assert} from 'chai';
 import {utils, Contract, constants} from 'ethers';
 import {Web3Provider} from 'ethers/providers';
 import {MakerDaoGateway} from '../types/ethers-contracts/MakerDaoGateway';
 import {DummyToken} from '../types/ethers-contracts/DummyToken';
 import {IWrappedEther} from '../types/ethers-contracts/IWrappedEther';
-import {BigNumber} from 'ethers/utils';
 import {Artifacts, transaction} from "./utils";
 import * as TestchainAddress from '../lib/testchain/out/addresses.json'
 import {SaiTub} from "../types/ethers-contracts/SaiTub";
-
-chai.use(require('bn-chai')(BigNumber));
-chai.use(require('chai-string'));
 
 const MakerDaoGatewayArtifacts: Artifacts  = artifacts.require('MakerDaoGateway') as any;
 const SaiTubArtifacts: Artifacts  = artifacts.require('SaiTub') as any;
@@ -117,15 +117,14 @@ contract('MakerDaoGateway: auxiliary actions', ([deployer, user]) => {
         expect(isPaused, 'state check').to.be.false;
     });
 
-    it('should be able to adopt CDP', async () => {
-        await transaction(saiTub.functions.give(cdpId, makerDaoGateway.address, {gasLimit: 6000000}));
-
+    it('should be able to register CDP', async () => {
         const oldOwnerFromGateway = await makerDaoGateway.functions.cdpOwner(cdpId);
         expect(oldOwnerFromGateway, 'gateway old owner check').to.be.equalIgnoreCase(constants.AddressZero);
 
         const preCdpsLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
 
-        await transaction(makerDaoGateway.functions.adoptCdp(cdpId, user, {gasLimit: 6000000}));
+        await transaction(makerDaoGateway.functions.registerCdp(cdpId, user, {gasLimit: 6000000}));
+        await transaction(saiTub.functions.give(cdpId, makerDaoGateway.address, {gasLimit: 6000000}));
 
         const postCdpsLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
         expect(postCdpsLength, 'cdps length check').to.eq.BN(preCdpsLength.add(1));
@@ -138,6 +137,18 @@ contract('MakerDaoGateway: auxiliary actions', ([deployer, user]) => {
 
         const cdpIdFromGateway = await makerDaoGateway.functions.cdpsByOwner(user, postCdpsLength.sub(1));
         expect(cdpIdFromGateway, 'gateway cdpId check').to.be.eq.BN(cdpId);
+    });
+
+    it('should not be able to eject cdp by user', async () => {
+        await assert.isRejected(transaction(
+            makerDaoGateway.functions.ejectCdp(cdpId, {gasLimit: 6000000})
+        ), 'transaction failed', 'permissions check');
+    });
+    
+    it('should not be able to transfer others cdp', async () => {
+        await assert.isRejected(transaction(
+            makerDaoGatewayPauser.functions.transferCdp(cdpId, deployer, {gasLimit: 6000000})
+        ), 'transaction failed', 'permissions check');
     });
     
     it('should be able to eject CDP by pauser', async () => {

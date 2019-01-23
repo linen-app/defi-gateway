@@ -30,7 +30,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     event CollateralReturned(address indexed owner, bytes32 cdpId, uint wethAmount, uint pethAmount);
     event CdpTransferred(address oldOwner, address newOwner, bytes32 cdpId);
     event CdpEjected(address newOwner, bytes32 cdpId);
-    event CdpAdopted(address newOwner, bytes32 cdpId);
+    event CdpRegistered(address newOwner, bytes32 cdpId);
 
     modifier isCdpOwner(bytes32 cdpId) {
         require(cdpOwner[cdpId] == msg.sender || cdpId == 0, "CDP belongs to a different address");
@@ -93,7 +93,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     }
 
     // ETH amount should be > 0.005 for new CDPs
-    // returns id of actual cdp (existing or a new one)
+    // returns id of actual CDP (existing or a new one)
     function supplyEth(bytes32 cdpId) isCdpOwner(cdpId) whenNotPaused isCdpOwner(cdpId) public payable returns (bytes32 _cdpId) {
         if (msg.value > 0) {
             weth.deposit.value(msg.value)();
@@ -105,7 +105,7 @@ contract MakerDaoGateway is Pausable, DSMath {
 
     // WETH amount should be > 0.005 for new CDPs
     // don't forget to approve WETH before supplying
-    // returns id of actual cdp (existing or a new one)
+    // returns id of actual CDP (existing or a new one)
     function supplyWeth(bytes32 cdpId, uint wethAmount) whenNotPaused isCdpOwner(cdpId) public returns (bytes32 _cdpId) {
         if (wethAmount > 0) {
             require(weth.transferFrom(msg.sender, address(this), wethAmount));
@@ -190,12 +190,18 @@ contract MakerDaoGateway is Pausable, DSMath {
 
     // TRANSFER AND ADOPT
 
+    // You can migrate your CDP from MakerDaoGateway contract to another owner
     function transferCdp(bytes32 cdpId, address nextOwner) isCdpOwner(cdpId) external {
-        saiTub.give(cdpId, nextOwner);
+        address _owner = nextOwner;
+        if (_owner == address(0x0)) {
+            _owner = msg.sender;
+        }
+        
+        saiTub.give(cdpId, _owner);
 
         _removeCdp(cdpId, msg.sender);
 
-        emit CdpTransferred(msg.sender, nextOwner, cdpId);
+        emit CdpTransferred(msg.sender, _owner, cdpId);
     }
     
     function ejectCdp(bytes32 cdpId) onlyPauser external {
@@ -207,10 +213,12 @@ contract MakerDaoGateway is Pausable, DSMath {
         emit CdpEjected(owner, cdpId);
     }
 
-    //!!!
-    function adoptCdp(bytes32 cdpId, address owner) whenNotPaused external {
-        require(saiTub.lad(cdpId) == address(this), "Can't adopt foreign CDP");
-        require(cdpOwner[cdpId] == address(0x0), "Can't adopt CDP twice");
+    // If you want to migrate existing CDP to MakerDaoGateway contract,
+    // you need to register your cdp first with this function, and then execute `give` operation,
+    // transferring CDP to the MakerDaoGateway contract
+    function registerCdp(bytes32 cdpId, address owner) whenNotPaused external {
+        require(saiTub.lad(cdpId) == msg.sender, "Can't register other's CDP");
+        require(cdpOwner[cdpId] == address(0x0), "Can't register CDP twice");
 
         address _owner = owner;
         if (_owner == address(0x0)) {
@@ -220,7 +228,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         cdpOwner[cdpId] = _owner;
         cdpsByOwner[_owner].push(cdpId);
 
-        emit CdpAdopted(_owner, cdpId);
+        emit CdpRegistered(_owner, cdpId);
     }
 
     // INTERNAL FUNCTIONS
