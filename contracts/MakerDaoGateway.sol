@@ -50,17 +50,22 @@ contract MakerDaoGateway is Pausable, DSMath {
         return cdpsByOwner[_owner].length;
     }
 
-    function systemParameters() external view returns (uint liquidationRatio, uint annualStabilityFee) {
+    function systemParameters() external view returns (uint liquidationRatio, uint annualStabilityFee, uint daiAvailable) {
         liquidationRatio = saiTub.mat();
         annualStabilityFee = rpow(saiTub.fee(), 365 days);
+        daiAvailable = sub(saiTub.cap(), dai.totalSupply());
     }
     
-    function cdpInfo(bytes32 cdpId) external view returns (uint borrowedDAI, uint suppliedPeth) {
+    function cdpInfo(bytes32 cdpId) external view returns (uint borrowedDai, uint suppliedPeth) {
         (, uint ink, uint art, ) = saiTub.cups(cdpId);
-        borrowedDAI = art;
+        borrowedDai = art;
         suppliedPeth = ink;
     }
-
+    
+    function cdpOutstandingDebtWithFee(bytes32 cdpId) external returns (uint outstandingDai) {
+        outstandingDai = saiTub.tab(cdpId);
+    }
+    
     function pethForWeth(uint wethAmount) public view returns (uint) {
         return rdiv(wethAmount, saiTub.per());
     }
@@ -202,6 +207,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         emit CdpEjected(owner, cdpId);
     }
 
+    //!!!
     function adoptCdp(bytes32 cdpId, address owner) whenNotPaused external {
         require(saiTub.lad(cdpId) == address(this), "Can't adopt foreign CDP");
         require(cdpOwner[cdpId] == address(0x0), "Can't adopt CDP twice");

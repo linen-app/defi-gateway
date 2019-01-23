@@ -21,7 +21,7 @@ const wethAddress = TestchainAddress.GEM;
 const daiAddress = TestchainAddress.SAI;
 const dexAddress = TestchainAddress.MAKER_OTC;
 
-contract('MakerDaoGateway', ([deployer, user]) => {
+contract('MakerDaoGateway: financial actions', ([deployer, user]) => {
     let makerDaoGateway: MakerDaoGateway;
     let dai: DummyToken;
     let weth: IWrappedEther;
@@ -48,14 +48,15 @@ contract('MakerDaoGateway', ([deployer, user]) => {
     });
 
     it('should have correct system parameters', async () => {
-        const {annualStabilityFee, liquidationRatio} = await makerDaoGateway.functions.systemParameters();
+        const {annualStabilityFee, liquidationRatio, daiAvailable } = await makerDaoGateway.functions.systemParameters();
         
         expect(annualStabilityFee, 'annualStabilityFee check').to.eq.BN('1004999999999999999962248547');
         expect(liquidationRatio, 'liquidationRatio check').to.eq.BN(new BigNumber(10).pow(26).mul(15));
+        expect(daiAvailable.isZero(), 'daiAvailable check').to.be.false;
     });
 
     it('should have correct WETH contract', async () => {
-        const wethAmount = utils.parseEther('0.006');
+        const wethAmount = utils.parseEther('0.6');
         const preWethBalance = await weth.functions.balanceOf(user);
 
         await transaction(weth.functions.approve(makerDaoGateway.address, constants.MaxUint256));
@@ -67,7 +68,7 @@ contract('MakerDaoGateway', ([deployer, user]) => {
     });
 
     it('should supplyWeth successfully', async () => {
-        const wethAmount = utils.parseEther('0.006');
+        const wethAmount = utils.parseEther('0.6');
         const preWethBalance = await weth.functions.balanceOf(user);
         const preLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
 
@@ -86,8 +87,8 @@ contract('MakerDaoGateway', ([deployer, user]) => {
     });
 
     it('should supplyAndBorrow successfully', async () => {
-        const daiAmount = new BigNumber(10);
-        const ethAmount = utils.parseEther('0.006');
+        const daiAmount = utils.parseEther('0.5');
+        const ethAmount = utils.parseEther('0.1');
         const preEthBalance = await provider.getBalance(user);
         const preDaiBalance = await dai.functions.balanceOf(user);
 
@@ -103,11 +104,23 @@ contract('MakerDaoGateway', ([deployer, user]) => {
         expect(preEthBalance.sub(postEthBalance), 'ETH balance check').to.eq.BN(ethAmount.add(ethUsedForGas));
         expect(postDaiBalance.sub(preDaiBalance), 'DAI balance check').to.eq.BN(daiAmount)
     });
+
+    xit('should get correct outstanding debt', async () => {
+        await increaseTime(60 * 60 * 24 * 1000, provider);
+        await transaction(makerDaoGateway.functions.cdpOutstandingDebtWithFee(cdpId, {gasLimit: 6000000}));
+        const data = makerDaoGateway.interface.functions.cdpOutstandingDebtWithFee.encode([cdpId]);
+        const res = await provider.call({
+            to: makerDaoGateway.address,
+            data: data
+        });
+        const debt = new BigNumber(res);
+        console.log(debt.toString());
+        expect(debt.gt(utils.parseEther('0.5')), "Outstanding debt balance check").to.be.true;
+    });
     
-    it('should repay successfully', async () => {
-        await increaseTime(60 * 60 * 24, provider);
+    xit('should repay successfully', async () => {
         
-        const daiAmount = new BigNumber(1);
+        const daiAmount = utils.parseEther('0.1');
         const preDaiBalance = await dai.functions.balanceOf(user);
 
         await transaction(dai.functions.approve(makerDaoGateway.address, constants.MaxUint256));
@@ -117,8 +130,8 @@ contract('MakerDaoGateway', ([deployer, user]) => {
         expect(preDaiBalance.sub(postDaiBalance), 'DAI balance check').to.eq.BN(daiAmount);
     });
 
-    it('should return WETH successfully', async () => {
-        const wethAmount = utils.parseEther('0.001');
+    xit('should return WETH successfully', async () => {
+        const wethAmount = utils.parseEther('0.1');
         const preWethBalance = await weth.functions.balanceOf(user);
 
         await transaction(makerDaoGateway.functions.returnWeth(cdpId, wethAmount, {gasLimit: 6000000}));
@@ -127,8 +140,8 @@ contract('MakerDaoGateway', ([deployer, user]) => {
         expect(postWethBalance.sub(preWethBalance), 'WETH balance check').to.eq.BN(wethAmount);
     });
 
-    it('should return ETH successfully', async () => {
-        const ethAmount = utils.parseEther('0.001');
+    xit('should return ETH successfully', async () => {
+        const ethAmount = utils.parseEther('0.1');
         const preEthBalance = await provider.getBalance(user);
 
         const {tx, receipt} = await transaction(makerDaoGateway.functions.returnEth(cdpId, ethAmount, {gasLimit: 6000000}));
@@ -138,9 +151,9 @@ contract('MakerDaoGateway', ([deployer, user]) => {
         expect(postEthBalance.sub(preEthBalance), 'ETH balance check').to.eq.BN(ethAmount.sub(ethUsedForGas));
     });
 
-    it('should repayAndReturn successfully', async () => {
-        const daiAmount = new BigNumber(1);
-        const ethAmount = utils.parseEther('0.001');
+    xit('should repayAndReturn successfully', async () => {
+        const daiAmount = utils.parseEther('0.1');
+        const ethAmount = utils.parseEther('0.1');
         const preDaiBalance = await dai.functions.balanceOf(user);
 
         await transaction(dai.functions.approve(makerDaoGateway.address, constants.MaxUint256));
@@ -149,10 +162,18 @@ contract('MakerDaoGateway', ([deployer, user]) => {
         const postDaiBalance = await dai.functions.balanceOf(user);
         expect(preDaiBalance.sub(postDaiBalance), 'DAI balance check').to.eq.BN(daiAmount);
     });
+    
+    xit('should have correct intermediary balance', async () => {
+        const {borrowedDai, suppliedPeth} = await makerDaoGateway.functions.cdpInfo(cdpId);
+        const suppliedWeth = await makerDaoGateway.functions.wethForPeth(suppliedPeth);
+        
+        expect(borrowedDai, 'DAI balance check').to.eq.BN(utils.parseEther('0.3'));
+        expect(suppliedWeth, 'WETH balance check').to.eq.BN(utils.parseEther('0.2'));
+    });
 
-    it('should repayAndReturn all successfully', async () => {
-        const daiAmount = new BigNumber(9);
-        const ethAmount = utils.parseEther('0.004');
+    xit('should repayAndReturn all successfully', async () => {
+        const daiAmount = utils.parseEther('0.3');
+        const ethAmount = utils.parseEther('0.2');
         const preDaiBalance = await dai.functions.balanceOf(user);
         const preEthBalance = await provider.getBalance(user);  
 
