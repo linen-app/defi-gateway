@@ -139,4 +139,28 @@ contract('MakerDaoGateway: auxiliary actions', ([deployer, user]) => {
         const cdpIdFromGateway = await makerDaoGateway.functions.cdpsByOwner(user, postCdpsLength.sub(1));
         expect(cdpIdFromGateway, 'gateway cdpId check').to.be.eq.BN(cdpId);
     });
+    
+    it('should be able to eject CDP by pauser', async () => {
+        const oldOwnerFromSaiTub = await saiTub.functions.lad(cdpId);
+        expect(oldOwnerFromSaiTub, 'saiTub old owner check').to.be.equalIgnoreCase(makerDaoGateway.address);
+
+        const oldOwnerFromGateway = await makerDaoGateway.functions.cdpOwner(cdpId);
+        expect(oldOwnerFromGateway, 'gateway old owner check').to.be.equalIgnoreCase(user);
+
+        const preCdpsLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
+
+        const cdpIdFromGateway = await makerDaoGateway.functions.cdpsByOwner(user, preCdpsLength.sub(1));
+        expect(cdpIdFromGateway, 'gateway cdpId check').to.be.eq.BN(cdpId);
+
+        await transaction(makerDaoGatewayPauser.functions.ejectCdp(cdpId, {gasLimit: 6000000}));
+
+        const postCdpsLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
+        expect(postCdpsLength, 'cdps length check').to.eq.BN(preCdpsLength.sub(1));
+
+        const newOwner = await saiTub.functions.lad(cdpId);
+        expect(newOwner, 'new owner check').to.be.equalIgnoreCase(user);
+
+        const newOwnerFromGateway = await makerDaoGateway.functions.cdpOwner(cdpId);
+        expect(newOwnerFromGateway, 'gateway new owner check').to.be.equalIgnoreCase(constants.AddressZero);
+    });
 });

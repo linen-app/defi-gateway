@@ -182,7 +182,7 @@ contract MakerDaoGateway is Pausable, DSMath {
 
     function closeCdp(bytes32 cdpId, bool payFeeInDai) whenNotPaused isCdpOwner(cdpId) external {
         repayDaiAndReturnWeth(cdpId, uint(-1), uint(-1), payFeeInDai);
-        _removeCdp(cdpId);
+        _removeCdp(cdpId, msg.sender);
         saiTub.shut(cdpId);
         
         emit CdpClosed(msg.sender, cdpId);
@@ -193,7 +193,7 @@ contract MakerDaoGateway is Pausable, DSMath {
     function transferCdp(bytes32 cdpId, address nextOwner) isCdpOwner(cdpId) external {
         saiTub.give(cdpId, nextOwner);
 
-        _removeCdp(cdpId);
+        _removeCdp(cdpId, msg.sender);
 
         emit CdpTransferred(msg.sender, nextOwner, cdpId);
     }
@@ -202,7 +202,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         address owner = cdpOwner[cdpId];
         saiTub.give(cdpId, owner);
 
-        _removeCdp(cdpId);
+        _removeCdp(cdpId, owner);
 
         emit CdpEjected(owner, cdpId);
     }
@@ -302,10 +302,10 @@ contract MakerDaoGateway is Pausable, DSMath {
         emit CdpOpened(msg.sender, cdpId);
     }
     
-    function _removeCdp(bytes32 cdpId) internal {
-        (uint i, bool ok) = cdpsByOwner[msg.sender].findElement(cdpId);
-        require(ok, "Can't find cdp in msg.sender's list");
-        cdpsByOwner[msg.sender].removeElement(i);
+    function _removeCdp(bytes32 cdpId, address owner) internal {
+        (uint i, bool ok) = cdpsByOwner[owner].findElement(cdpId);
+        require(ok, "Can't find cdp in owner's list");
+        cdpsByOwner[owner].removeElement(i);
 
         delete cdpOwner[cdpId];
     }
