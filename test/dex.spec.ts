@@ -40,7 +40,7 @@ contract('DEX', ([deployer, user]) => {
     
     it('should offer order successfully', async () => {
         const balance = await mkr.functions.balanceOf(deployer);
-        const amount = new BigNumber(10).pow(20);        
+        const amount = utils.parseEther('0.0005');        
         expect(balance.gte(amount), 'MKR balance check').to.be.true;
         
         await transaction(mkr.functions.approve(dexAddress, constants.MaxUint256));
