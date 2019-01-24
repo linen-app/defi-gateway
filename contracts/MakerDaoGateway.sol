@@ -56,14 +56,11 @@ contract MakerDaoGateway is Pausable, DSMath {
         daiAvailable = sub(saiTub.cap(), dai.totalSupply());
     }
     
-    function cdpInfo(bytes32 cdpId) external view returns (uint borrowedDai, uint suppliedPeth) {
+    function cdpInfo(bytes32 cdpId) external returns (uint borrowedDai, uint outstandingDai, uint suppliedPeth) {
         (, uint ink, uint art, ) = saiTub.cups(cdpId);
         borrowedDai = art;
         suppliedPeth = ink;
-    }
-    
-    function cdpOutstandingDebtWithFee(bytes32 cdpId) external returns (uint outstandingDai) {
-        outstandingDai = saiTub.tab(cdpId);
+        outstandingDai = add(saiTub.rap(cdpId), saiTub.tab(cdpId));
     }
     
     function pethForWeth(uint wethAmount) public view returns (uint) {
