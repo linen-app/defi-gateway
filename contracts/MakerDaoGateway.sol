@@ -28,9 +28,9 @@ contract MakerDaoGateway is Pausable, DSMath {
     event DaiBorrowed(address indexed owner, bytes32 cdpId, uint amount);
     event DaiRepaid(address indexed owner, bytes32 cdpId, uint amount);
     event CollateralReturned(address indexed owner, bytes32 cdpId, uint wethAmount, uint pethAmount);
-    event CdpTransferred(address oldOwner, address newOwner, bytes32 cdpId);
-    event CdpEjected(address newOwner, bytes32 cdpId);
-    event CdpRegistered(address newOwner, bytes32 cdpId);
+    event CdpTransferred(address indexed oldOwner, address indexed newOwner, bytes32 cdpId);
+    event CdpEjected(address indexed newOwner, bytes32 cdpId);
+    event CdpRegistered(address indexed newOwner, bytes32 cdpId);
 
     modifier isCdpOwner(bytes32 cdpId) {
         require(cdpOwner[cdpId] == msg.sender || cdpId == 0, "CDP belongs to a different address");
@@ -277,17 +277,17 @@ contract MakerDaoGateway is Pausable, DSMath {
         return wdiv(daiFeeAmount, uint(val));
     }
 
-    function _handleGovFee(uint govFeeAmount, bool payWithDai) internal {
-        if (govFeeAmount > 0) {
+    function _handleGovFee(uint mkrGovAmount, bool payWithDai) internal {
+        if (mkrGovAmount > 0) {
             if (payWithDai) {
-                uint saiGovAmt = dex.getPayAmount(dai, mkr, govFeeAmount);
+                uint daiAmount = dex.getPayAmount(dai, mkr, mkrGovAmount);
 
                 _ensureApproval(dai, address(dex));
 
-                require(dai.transferFrom(msg.sender, address(this), saiGovAmt));
-                dex.buyAllAmount(mkr, govFeeAmount, dai, saiGovAmt);
+                require(dai.transferFrom(msg.sender, address(this), daiAmount));
+                dex.buyAllAmount(mkr, mkrGovAmount, dai, daiAmount);
             } else {
-                require(mkr.transferFrom(msg.sender, address(this), govFeeAmount));
+                require(mkr.transferFrom(msg.sender, address(this), mkrGovAmount));
             }
         }
     }
@@ -310,8 +310,8 @@ contract MakerDaoGateway is Pausable, DSMath {
     function _removeCdp(bytes32 cdpId, address owner) internal {
         (uint i, bool ok) = cdpsByOwner[owner].findElement(cdpId);
         require(ok, "Can't find cdp in owner's list");
+        
         cdpsByOwner[owner].removeElement(i);
-
         delete cdpOwner[cdpId];
     }
 }
