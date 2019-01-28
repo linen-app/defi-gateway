@@ -13,7 +13,7 @@ No assets are stored on a smart contract, besides CDP ownership.
 
 ## References:
 - [MakerDAO SAI](https://github.com/makerdao/sai)
-- [InstaDApp](https://instadapp.io)
+- [InstaDApp](https://github.com/InstaDApp/InstaContract)
 
 ## Run test:
 - `npm run test:chain` (in a separate terminal)
