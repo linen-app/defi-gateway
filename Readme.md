@@ -11,10 +11,10 @@ More info about MakerDAO: https://makerdao.com/en/whitepaper
 
 No assets are stored on a smart contract, besides CDP ownership.
 
-## References:
+## References
 - [MakerDAO SAI](https://github.com/makerdao/sai)
 - [InstaDApp](https://github.com/InstaDApp/InstaContract)
 
-## Run test:
+## How to run tests:
 - `npm run test:chain` (in a separate terminal)
 - `npm test`
