@@ -91,7 +91,7 @@ contract MakerDaoGateway is Pausable, DSMath {
 
     // ETH amount should be > 0.005 for new CDPs
     // returns id of actual CDP (existing or a new one)
-    function supplyEth(bytes32 cdpId) isCdpOwner(cdpId) whenNotPaused isCdpOwner(cdpId) public payable returns (bytes32 _cdpId) {
+    function supplyEth(bytes32 cdpId) whenNotPaused isCdpOwner(cdpId) public payable returns (bytes32 _cdpId) {
         if (msg.value > 0) {
             weth.deposit.value(msg.value)();
             return _supply(cdpId, msg.value);
