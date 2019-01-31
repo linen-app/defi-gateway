@@ -122,7 +122,7 @@ contract('MakerDaoGateway: financial actions', ([deployer, user]) => {
     it('should repay successfully', async () => {
         const daiAmount = new BigNumber(100);
         const preDaiBalance = await dai.functions.balanceOf(user);
-        
+
         expect(preDaiBalance.gte(daiAmount), 'pre DAI balance check').to.be.true;
 
         await transaction(dai.functions.approve(makerDaoGateway.address, constants.MaxUint256));
@@ -192,6 +192,35 @@ contract('MakerDaoGateway: financial actions', ([deployer, user]) => {
         const ethUsedForGas = (receipt.gasUsed || new BigNumber(0)).mul(tx.gasPrice);
         expect(preDaiBalance.sub(postDaiBalance), 'DAI balance check').to.eq.BN(daiAmount);
         expect(postEthBalance.sub(preEthBalance), 'ETH balance check').to.eq.BN(ethAmount.sub(ethUsedForGas));
+    });
+
+    it('should close CDP successfully', async () => {
+        const daiAmount = new BigNumber(500);
+        const wethAmount = utils.parseEther('0.1');
+        const preWethBalance = await weth.functions.balanceOf(user);
+        const preDaiBalance = await dai.functions.balanceOf(user);
+
+        await transaction(makerDaoGateway.functions.supplyWethAndBorrowDai(
+            cdpId,
+            wethAmount,
+            daiAmount,
+            {gasLimit: 6000000}
+        ));
+
+        const preLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
+
+        await transaction(makerDaoGateway.functions.closeCdp(cdpId, true, {gasLimit: 6000000}));
+
+        const postLength = await makerDaoGateway.functions.cdpsByOwnerLength(user);
+        const cdpOwner = await makerDaoGateway.functions.cdpOwner(cdpId);
+
+        const postWethBalance = await weth.functions.balanceOf(user);
+        const postDaiBalance = await dai.functions.balanceOf(user);
+        expect(preWethBalance, 'ETH balance check').to.eq.BN(postWethBalance);
+        expect(preDaiBalance.sub(postDaiBalance), 'DAI balance check').to.eq.BN(0);
+        expect(preLength.sub(postLength), 'CDPs count check').to.eq.BN(1);
+        expect(cdpOwner, 'CDP owner check').to.be.equalIgnoreCase(constants.AddressZero);
+
     });
 
     it('should not allow token leaks', async () => {
