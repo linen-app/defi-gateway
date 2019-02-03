@@ -76,8 +76,9 @@ contract MakerDaoGateway is Pausable, DSMath {
     }
 
     // SUPPLY AND BORROW
-
-    // specify cdpId if you want to use existing CDP, or pass 0 if you need to create a new one 
+    
+    // specify cdpId if you want to use existing CDP, or pass 0 if you need to create a new one
+    // for new and active CDPs collateral amount should be > 0.005 PETH
     function supplyEthAndBorrowDai(bytes32 cdpId, uint daiAmount) whenNotPaused isCdpOwner(cdpId) external payable {
         bytes32 id = supplyEth(cdpId);
         borrowDai(id, daiAmount);
@@ -89,8 +90,8 @@ contract MakerDaoGateway is Pausable, DSMath {
         borrowDai(id, daiAmount);
     }
 
-    // ETH amount should be > 0.005 for new CDPs
     // returns id of actual CDP (existing or a new one)
+    // for new and active CDPs collateral amount should be > 0.005 PETH
     function supplyEth(bytes32 cdpId) whenNotPaused isCdpOwner(cdpId) public payable returns (bytes32 _cdpId) {
         if (msg.value > 0) {
             weth.deposit.value(msg.value)();
@@ -100,7 +101,7 @@ contract MakerDaoGateway is Pausable, DSMath {
         return cdpId;
     }
 
-    // WETH amount should be > 0.005 for new CDPs
+    // for new and active CDPs collateral amount should be > 0.005 PETH
     // don't forget to approve WETH before supplying
     // returns id of actual CDP (existing or a new one)
     function supplyWeth(bytes32 cdpId, uint wethAmount) whenNotPaused isCdpOwner(cdpId) public returns (bytes32 _cdpId) {
